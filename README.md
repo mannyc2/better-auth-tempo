@@ -1,5 +1,9 @@
 # better-auth-tempo
 
+[![npm version](https://img.shields.io/npm/v/better-auth-tempo.svg)](https://www.npmjs.com/package/better-auth-tempo)
+[![npm downloads](https://img.shields.io/npm/dm/better-auth-tempo.svg)](https://www.npmjs.com/package/better-auth-tempo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 Tempo blockchain plugin for [better-auth](https://github.com/better-auth/better-auth). Enables passkey-based wallets, access key management, and WebAuthn authentication with Tempo address derivation.
 
 ## Features

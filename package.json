@@ -48,11 +48,15 @@
     "wallet",
     "access-key"
   ],
-  "author": "",
+  "author": "Tempo",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/better-auth-tempo"
+    "url": "git+https://github.com/mannyc2/better-auth-tempo.git"
+  },
+  "homepage": "https://github.com/mannyc2/better-auth-tempo#readme",
+  "bugs": {
+    "url": "https://github.com/mannyc2/better-auth-tempo/issues"
   },
   "dependencies": {
     "@simplewebauthn/types": "^11.0.0"

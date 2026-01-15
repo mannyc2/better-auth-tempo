@@ -34,10 +34,20 @@ export const auth = betterAuth({
         rpName: 'My App',
         origin: 'https://example.com',
       },
+      // Static server wallet (shared across all users)
       serverWallet: {
-        address: '0x...', // Backend wallet for access keys
+        address: '0x...', // Backend signer for access keys
         keyType: 'secp256k1',
       },
+      // Or dynamic per-user server wallets:
+      // serverWallet: {
+      //   getAddress: async ({ userId }) => {
+      //     // Fetch from Turnkey, KMS, or your wallet infrastructure
+      //     return getUserServerWallet(userId);
+      //   },
+      //   keyType: 'secp256k1',
+      //   label: ({ userId }) => `Server wallet for ${userId}`,
+      // },
       allowedChainIds: [42431], // Tempo Moderato testnet
     }),
   ],

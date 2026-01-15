@@ -1,0 +1,99 @@
+{
+  "name": "better-auth-tempo",
+  "version": "0.1.0",
+  "description": "Tempo blockchain plugin for better-auth - passkey wallets, access keys, and WebAuthn integration",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "require": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup && tsc",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "better-auth",
+    "tempo",
+    "blockchain",
+    "passkey",
+    "webauthn",
+    "wallet",
+    "access-key"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/better-auth-tempo"
+  },
+  "dependencies": {
+    "@simplewebauthn/types": "^11.0.0"
+  },
+  "peerDependencies": {
+    "@simplewebauthn/browser": ">=11.0.0",
+    "@simplewebauthn/server": ">=11.0.0",
+    "better-auth": ">=1.2.0",
+    "nanostores": ">=0.11.0",
+    "ox": ">=0.11.0",
+    "viem": ">=2.0.0",
+    "wagmi": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@simplewebauthn/browser": {
+      "optional": true
+    },
+    "nanostores": {
+      "optional": true
+    },
+    "wagmi": {
+      "optional": true
+    },
+    "ox": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@better-auth/passkey": "^1.2.7",
+    "@better-fetch/fetch": "^1.1.14",
+    "@simplewebauthn/browser": "^11.0.0",
+    "@simplewebauthn/server": "^11.0.0",
+    "@simplewebauthn/types": "^11.0.0",
+    "@types/node": "^22.0.0",
+    "better-auth": "^1.2.7",
+    "nanostores": "^0.11.0",
+    "ox": "^0.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "viem": "^2.0.0",
+    "vitest": "^2.0.0",
+    "wagmi": "^3.0.0"
+  }
+}

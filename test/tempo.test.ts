@@ -75,17 +75,19 @@ describe('tempo plugin', async () => {
       accessKey: AccessKeyResponse;
     }>;
     listTempoPasskeys: (opts: { headers: Headers }) => Promise<unknown[]>;
-    listKeys: (opts: { headers: Headers }) => Promise<unknown[]>;
-    getPublicKey: (opts: { headers: Headers; params: { credentialId: string } }) => Promise<{
-      credentialId: string;
-      publicKey: string;
-      address: string;
+    getPasskeyRegistrationOptions: (opts: { headers: Headers }) => Promise<{
+      challenge: string;
+      rp: { id: string; name: string };
     }>;
-    setPublicKey: (opts: {
+    getPasskeyAuthenticationOptions: (opts: Record<string, never>) => Promise<{
+      challenge: string;
+      rpId: string;
+    }>;
+    deletePasskey: (opts: {
       headers: Headers;
       params: { credentialId: string };
-      body: Record<string, unknown>;
     }) => Promise<{ success: boolean }>;
+    getServerWallet: (opts: { headers: Headers }) => Promise<{ wallet: Wallet }>;
   };
 
   // ============================================================================
@@ -232,6 +234,53 @@ describe('tempo plugin', async () => {
           },
         })
       ).rejects.toThrowError(APIError);
+    });
+
+    it('should get shared server wallet', async () => {
+      const { headers } = await signInWithTestUser();
+      const context = await auth.$context;
+
+      // Create a shared server wallet (userId: null)
+      const serverWalletAddress = '0xSERVER0000000000000000000000000000000001';
+      await context.adapter.create({
+        model: 'wallet',
+        data: {
+          address: serverWalletAddress,
+          keyType: 'secp256k1',
+          walletType: 'server',
+          passkeyId: null,
+          userId: null, // Shared server wallet has no userId
+          label: 'Shared Server Wallet',
+          createdAt: new Date(),
+        },
+      });
+
+      const result = await api.getServerWallet({ headers });
+
+      expect(result).toHaveProperty('wallet');
+      expect(result.wallet.walletType).toBe('server');
+      expect(result.wallet.userId).toBeNull();
+    });
+
+    it('should return 404 when no server wallet configured', async () => {
+      const { headers } = await signInWithTestUser();
+      const context = await auth.$context;
+
+      // Delete any existing server wallets with null userId
+      const serverWallets = await context.adapter.findMany({
+        model: 'wallet',
+        where: [{ field: 'walletType', value: 'server' }],
+      });
+      for (const wallet of serverWallets) {
+        if ((wallet as { userId: string | null }).userId === null) {
+          await context.adapter.delete({
+            model: 'wallet',
+            where: [{ field: 'id', value: (wallet as { id: string }).id }],
+          });
+        }
+      }
+
+      await expect(api.getServerWallet({ headers })).rejects.toThrowError(APIError);
     });
   });
 
@@ -560,7 +609,7 @@ describe('tempo plugin', async () => {
     it('should list keys for authenticated user', async () => {
       const { headers } = await signInWithTestUser();
 
-      const result = await api.listKeys({ headers });
+      const result = await api.listTempoPasskeys({ headers });
 
       expect(Array.isArray(result)).toBe(true);
     });
@@ -568,42 +617,34 @@ describe('tempo plugin', async () => {
     it('should get challenge for WebAuthn registration', async () => {
       const { headers } = await signInWithTestUser();
 
-      const result = await (
-        api as unknown as {
-          getChallenge: (opts: { headers: Headers }) => Promise<{
-            challenge: string;
-            rp: { id: string; name: string };
-          }>;
-        }
-      ).getChallenge({ headers });
+      const result = await api.getPasskeyRegistrationOptions({ headers });
 
       expect(result).toHaveProperty('challenge');
       expect(result).toHaveProperty('rp');
-      expect(result.challenge).toMatch(/^0x[a-f0-9]+$/i); // hex format
+      expect(typeof result.challenge).toBe('string');
+      expect(result.challenge.length).toBeGreaterThan(0);
       expect(result.rp).toHaveProperty('id');
       expect(result.rp).toHaveProperty('name');
     });
 
-    it('should get public key by credential ID', async () => {
+    it('should get authentication options without session', async () => {
+      const result = await api.getPasskeyAuthenticationOptions({});
+
+      expect(result).toHaveProperty('challenge');
+      expect(result).toHaveProperty('rpId');
+      expect(typeof result.challenge).toBe('string');
+      expect(result.challenge.length).toBeGreaterThan(0);
+    });
+
+    it('should delete passkey owned by user', async () => {
       const { headers, user } = await signInWithTestUser();
       const context = await auth.$context;
 
-      const credentialId = 'keymanager-test-cred';
+      const credentialId = 'delete-test-cred-' + Date.now();
       const mockCoseKey = Buffer.from([
-        0xa5,
-        0x01,
-        0x02,
-        0x03,
-        0x26,
-        0x20,
-        0x01,
-        0x21,
-        0x58,
-        0x20,
+        0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20,
         ...Array(32).fill(0xaa),
-        0x22,
-        0x58,
-        0x20,
+        0x22, 0x58, 0x20,
         ...Array(32).fill(0xbb),
       ]).toString('base64');
 
@@ -612,70 +653,82 @@ describe('tempo plugin', async () => {
         data: {
           userId: user.id,
           publicKey: mockCoseKey,
-          name: 'KeyManager Test',
+          name: 'Delete Test Passkey',
           counter: 0,
           deviceType: 'singleDevice',
           credentialID: credentialId,
           createdAt: new Date(),
           backedUp: false,
           transports: 'internal',
-          aaguid: 'km-aaguid',
         },
       });
 
-      const result = await api.getPublicKey({
+      const result = await api.deletePasskey({
         headers,
         params: { credentialId },
       });
 
-      expect(result).toHaveProperty('credentialId');
-      expect(result).toHaveProperty('publicKey');
-      expect(result).toHaveProperty('address');
-      expect(result.credentialId).toBe(credentialId);
+      expect(result).toHaveProperty('success', true);
+
+      // Verify passkey is deleted by checking listTempoPasskeys
+      const passkeys = await api.listTempoPasskeys({ headers });
+      const found = (passkeys as { credentialID: string }[]).find(
+        (p) => p.credentialID === credentialId
+      );
+      expect(found).toBeUndefined();
     });
 
-    it('should return 404 for non-existent credential', async () => {
+    it('should return 404 for non-existent passkey', async () => {
       const { headers } = await signInWithTestUser();
 
       await expect(
-        api.getPublicKey({
+        api.deletePasskey({
           headers,
-          params: { credentialId: 'non-existent-cred' },
+          params: { credentialId: 'non-existent-cred-id' },
         })
       ).rejects.toThrowError(APIError);
     });
 
-    // Note: setPublicKey now requires full WebAuthn verification (challenge + attestationObject)
-    // Testing this properly requires mocking the WebAuthn ceremony which is complex.
-    // The endpoint validates:
-    // 1. Challenge exists and belongs to current user
-    // 2. WebAuthn attestationObject is valid
-    // 3. Public key extracted from attestationObject matches
-    // Integration testing should be done via actual browser WebAuthn flow.
-    it('should reject setPublicKey without valid challenge', async () => {
+    it('should reject deleting another user\'s passkey', async () => {
+      const context = await auth.$context;
+
+      // Create another user using the internal adapter
+      const otherUser = await context.internalAdapter.createUser({
+        email: `other-${Date.now()}@test.com`,
+        name: 'Other User',
+        emailVerified: true,
+      });
+
+      const otherCredentialId = 'other-user-cred-' + Date.now();
+      const mockCoseKey = Buffer.from([
+        0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20,
+        ...Array(32).fill(0xcc),
+        0x22, 0x58, 0x20,
+        ...Array(32).fill(0xdd),
+      ]).toString('base64');
+
+      await context.adapter.create({
+        model: 'passkey',
+        data: {
+          userId: otherUser.id,
+          publicKey: mockCoseKey,
+          name: 'Other User Passkey',
+          counter: 0,
+          deviceType: 'singleDevice',
+          credentialID: otherCredentialId,
+          createdAt: new Date(),
+          backedUp: false,
+          transports: 'internal',
+        },
+      });
+
+      // Sign in as a different user and try to delete
       const { headers } = await signInWithTestUser();
 
-      // Attempt to set public key without getting challenge first
       await expect(
-        api.setPublicKey({
+        api.deletePasskey({
           headers,
-          params: { credentialId: 'any-cred-id' },
-          body: {
-            credential: {
-              id: 'any-cred-id',
-              response: {
-                clientDataJSON: btoa(
-                  JSON.stringify({
-                    challenge: 'invalid',
-                    origin: 'http://localhost',
-                    type: 'webauthn.create',
-                  })
-                ),
-                attestationObject: 'invalid',
-              },
-            },
-            publicKey: '0x1234',
-          },
+          params: { credentialId: otherCredentialId },
         })
       ).rejects.toThrowError(APIError);
     });
